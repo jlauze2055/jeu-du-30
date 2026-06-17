@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Le Jeu du 30</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="JeuDu30">
+    <link rel="apple-touch-icon" href="icon.png">
+
+    <style>
+        :root {
+            --ios-blue: #007aff;
+            --ios-red: #ff3b30;
+            --border-color: #000000;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f2f2f7; padding: 10px; height: 100vh; display: flex; flex-direction: column; }
+        
+        .screen { display: none; flex-direction: column; height: 100%; }
+        .screen.active { display: flex; }
+
+        /* Écran Configuration */
+        .setup-container { background: white; padding: 20px; border-radius: 12px; border: 3px solid var(--border-color); max-width: 450px; margin: auto; width: 100%; }
+        h2 { text-align: center; margin-bottom: 15px; font-size: 22px; }
+        .form-group { margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+        .form-group label { font-weight: bold; width: 90px; font-size: 14px; }
+        .form-group input { flex: 1; padding: 8px; border: 2px solid #ccc; border-radius: 6px; font-size: 14px; }
+        .btn { padding: 12px; background: var(--ios-blue); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; text-align: center; width: 100%; margin-top: 10px; }
+
+        /* Écran de Jeu */
+        .header-game { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 5px; }
+        .board { display: flex; gap: 6px; flex: 1; overflow-x: auto; padding-bottom: 5px; align-items: stretch; justify-content: center; }
+        
+        .column { flex: 1; min-width: 85px; max-width: 160px; display: flex; flex-direction: column; border: 3px solid var(--border-color); background: white; border-radius: 6px; overflow: hidden; position: relative; }
+        .column.eliminated { background: #e5e5ea; border-color: #8e8e93; opacity: 0.6; }
+        .column.eliminated .num-cell { background: #d1d1d6; color: #8e8e93; text-decoration: line-through; }
+        .column.eliminated .score-display { color: var(--ios-red); font-size: 24px; text-decoration: line-through; }
+        
+        .player-header { border-bottom: 3px solid var(--border-color); padding: 10px 4px; text-align: center; font-weight: bold; background: #fafafa; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
+        .score-display { font-size: 32px; font-weight: 900; text-align: center; padding: 10px 0; border-bottom: 2px dashed #ccc; background: #fffbdf; }
+        
+        .grid-numbers { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 1px; background-color: #eee; padding: 1px; overflow-y: auto; }
+        .num-cell { background: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; }
+        .num-cell.current-score { background-color: #fffbdf; color: #000; border: 2px solid var(--ios-blue); box-shadow: inset 0 0 5px rgba(0,0,0,0.2); }
+        
+        .win-footer { border-top: 3px solid var(--border-color); padding: 6px 4px; text-align: center; background: #fafafa; font-size: 12px; font-weight: bold; }
+
+        /* Panneau d'action */
+        .action-panel { background: white; border: 3px solid var(--border-color); padding: 12px; border-radius: 8px; margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .action-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .action-row label { font-weight: bold; font-size: 15px; }
+        .action-row input { width: 80px; padding: 8px; text-align: center; font-weight: bold; font-size: 16px; border: 2px solid var(--border-color); border-radius: 6px; }
+        .turn-indicator { font-weight: bold; color: var(--ios-blue); font-size: 16px; }
+    </style>
+</head>
+<body>
+
+    <!-- ÉCRAN CONFIGURATION -->
+    <div id="screenSetup" class="screen active">
+        <div class="setup-container">
+            <h2>Nouveau Jeu du 30</h2>
+            <div class="form-group">
+                <label>Nb Joueurs :</label>
+                <input type="number" id="playerCount" min="2" max="8" value="4" oninput="generatePlayerInputs()">
+            </div>
+            <div id="playersNamesContainer"></div>
+            <button class="btn" onclick="startGame()">Commencer la Partie</button>
+        </div>
+    </div>
+
+    <!-- ÉCRAN DE JEU -->
+    <div id="screenGame" class="screen">
+        <div class="header-game">
+            <span id="turnDisplay" class="turn-indicator">Tour : —</span>
+            <button style="padding:6px 12px; background:var(--ios-red); color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="abortGame()">Quitter</button>
+        </div>
+
+        <div class="board" id="gameBoard"></div>
+
+        <div class="action-panel" id="actionPanel">
+            <div class="action-row">
+                <div>Au tour de : <span id="activePlayerName" style="font-weight:900;">—</span></div>
+                <div>
+                    <label>Total Dés : </label>
+                    <input type="number" id="diceTotalInput" min="6" max="60" placeholder="Ex: 28">
+                </div>
+            </div>
+            <button class="btn" onclick="processTurn()">Valider le Lancer</button>
+        </div>
+    </div>
+
+    <script>
+        let players = []; 
+        let activeIndex = 0; 
+
+        function getHistoryWins() {
+            try {
+                let data = localStorage.getItem('jeu30_history_wins');
+                return data ? JSON.parse(data) : {};
+            } catch(e) {
+                return {};
+            }
+        }
+
+        function generatePlayerInputs() {
+            let count = parseInt(document.getElementById('playerCount').value);
+            
+            if (isNaN(count) || count < 2) count = 2;
+            if (count > 8) count = 8;
+            document.getElementById('playerCount').value = count;
+
+            const container = document.getElementById('playersNamesContainer');
+            container.innerHTML = '';
+            
+            let historyWins = getHistoryWins();
+
+            for (let i = 0; i < count; i++) {
+                let savedName = localStorage.getItem('jeu30_last_p_' + i) || ('Joueur ' + (i+1));
+                let w = historyWins[savedName] || 0;
+                
+                let div = document.createElement('div');
+                div.className = 'form-group';
+                div.innerHTML = '<label>Prénom J' + (i+1) + ' :</label>' +
+                                '<input type="text" class="player-name-input" value="' + savedName + '" placeholder="Saisir le prénom">' +
+                                '<span style="font-size:12px; color:#666; min-width:50px; text-align:right;">🏆 ' + w + ' v.</span>';
+                container.appendChild(div);
+            }
+        }
+
+        function startGame() {
+            const inputs = document.querySelectorAll('.player-name-input');
+            players = [];
+            
+            let historyWins = getHistoryWins();
+
+            inputs.forEach((input, index) => {
+                let name = input.value.trim();
+                if(!name) {
+                    name = 'Joueur ' + (index + 1);
+                }
+                localStorage.setItem('jeu30_last_p_' + index, name); 
+                
+                players.push({
+                    name: name,
+                    score: 30, 
+                    eliminated: false,
+                    wins: historyWins[name] || 0
+                });
+            });
+
+            activeIndex = 0; 
+            
+            document.getElementById('screenSetup').classList.remove('active');
+            document.getElementById('screenGame').classList.add('active');
+            
+            renderBoard();
+            updateTurnDisplay();
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('gameBoard');
+            board.innerHTML = '';
+
+            players.forEach((p, idx) => {
+                let col = document.createElement('div');
+                col.className = 'column ' + (p.eliminated ? 'eliminated' : '');
+                if (idx === activeIndex && !p.eliminated) {
+                    col.style.borderColor = 'var(--ios-blue)';
+                }
+
+                let html = '<div class="player-header" style="' + (idx === activeIndex && !p.eliminated ? 'background:#e3f2fd;' : '') + '">' + p.name + '</div>' +
+                           '<div class="score-display">' + (p.score > 0 ? p.score : 0) + '</div>' +
+                           '<div class="grid-numbers">';
+
+                for (let i = 30; i >= 1; i--) {
+                    let isCurrent = (p.score === i && !p.eliminated) ? 'current-score' : '';
+                    html += '<div class="num-cell ' + isCurrent + '">' + i + '</div>';
+                }
+
+                html += '</div><div class="win-footer">🏆 ' + p.wins + ' Vic.</div>';
+                col.innerHTML = html;
+                board.appendChild(col);
+            });
+        }
+
+        function updateTurnDisplay() {
+            if (players.length === 0) return;
+            let current = players[activeIndex];
+            document.getElementById('activePlayerName').innerText = current.name;
+            document.getElementById('turnDisplay').innerText = 'Tour de : ' + current.name;
+            document.getElementById('diceTotalInput').value = '';
+document.getElementById('diceTotalInput').focus();}function processTurn() {const totalInput = document.getElementById('diceTotalInput');let total = parseInt(totalInput.value);if (isNaN(total) || total < 6 || total > 60) {alert("Veuillez saisir un total de dés valide (entre 6 et 60).");return;}let attacker = players(activeIndex);if (total < 30) {let diff = 30 - total;attacker.score -= diff;alert(attacker.name + " fait un total de " + total + ". Il perd " + diff + " points.");if (attacker.score <= 0) {attacker.score = 0;attacker.eliminated = true;alert("💀 " + attacker.name + " est éliminé !");}nextTurn();}else if (total === 30) {alert(attacker.name + " fait exactement 30. Aucun point perdu.");nextTurn();}else {let delta = total - 30;let direction = (total % 2 === 1) ? 'gauche' : 'droite';let penaltyDiceCount = prompt("Score de " + total + " ! " + attacker.name + " doit relancer les dés.\nCombien de dés avec la face " + delta + " a-t-il obtenus au total ?", "2");let count = parseInt(penaltyDiceCount);if (isNaN(count) || count < 0) count = 0;let penaltyTotalPoints = count * delta;if (penaltyTotalPoints > 0) {alert(attacker.name + " inflige une pénalité totale de " + penaltyTotalPoints + " points à sa " + direction + ".");applyPenaltyCascade(activeIndex, penaltyTotalPoints, direction);} else {alert(attacker.name + " n'a sorti aucun dé requis. Pas de pénalité.");nextTurn();}}}function applyPenaltyCascade(attackerIdx, pointsLeft, direction) {let currentTargetIdx = attackerIdx;while (pointsLeft > 0) {currentTargetIdx = getNextActivePlayerIndex(currentTargetIdx, direction);if (currentTargetIdx === attackerIdx || currentTargetIdx === -1) {break;}let target = players(currentTargetIdx);if (target.score > pointsLeft) {target.score -= pointsLeft;alert(target.name + " encaisse " + pointsLeft + " points de pénalité. Score actuel : " + target.score);pointsLeft = 0;} else {pointsLeft -= target.score;target.score = 0;target.eliminated = true;alert("💀 " + target.name + " est éliminé ! Le reste de la pénalité (" + pointsLeft + " pts) va sur le joueur suivant à sa " + direction + ".");}}checkGameEndOrNext();}function getNextActivePlayerIndex(startIdx, direction) {let step = (direction === 'gauche') ? -1 : 1;let idx = startIdx;for (let i = 0; i < players.length; i++) {idx = (idx + step + players.length) % players.length;if (!players(idx).eliminated) return idx;}return -1;}function nextTurn() {checkGameEndOrNext();}function checkGameEndOrNext() {let activePlayers = players.filter(p => !p.eliminated);renderBoard();if (activePlayers.length === 1) {let winner = activePlayers(0);winner.wins += 1;alert("🎉 VICTOIRE ! " + winner.name + " remporte la partie !");let historyWins = getHistoryWins();historyWins(winner.name) = winner.wins;localStorage.setItem('jeu30_history_wins', JSON.stringify(historyWins));document.getElementById('screenGame').classList.remove('active');document.getElementById('screenSetup').classList.add('active');generatePlayerInputs();} else {let nextIdx = activeIndex;do {nextIdx = (nextIdx + 1) % players.length;} while (players(nextIdx).eliminated);activeIndex = nextIdx;updateTurnDisplay();}}function abortGame() {if (confirm("Abandonner la partie ?")) {document.getElementById('screenGame').classList.remove('active');document.getElementById('screenSetup').classList.add('active');generatePlayerInputs();}}generatePlayerInputs();

@@ -1,0 +1,16 @@
+{
+  "name": "Le Jeu du 30 - Scoreur Officiel",
+  "short_name": "JeuDu30",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f5f5f7",
+  "theme_color": "#007aff",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

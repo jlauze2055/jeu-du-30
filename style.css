@@ -1,0 +1,167 @@
+/* Réinitialisation complète pour le confort tactile PWA (Safari/Chrome) */
+* {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+body {
+    margin: 0;
+    font-family: "Comic Sans MS", "Chalkboard SE", sans-serif; /* Style identique à l'image */
+    background: radial-gradient(circle, #2b5c3a 0%, #14351f 100%); /* Fond tapis de feutre vert */
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Zone d'action de jeu */
+#game-controls {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 15px 25px;
+    border-radius: 15px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+/* --- REPRODUCTION EXACTE DU GABARIT --- */
+#score-board-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    display: flex;
+    padding: 10px 0;
+}
+
+#score-board {
+    display: flex;
+    gap: 15px;
+    margin: 0 auto;
+}
+
+/* Le rectangle de la planche originale */
+.gabarit-colonne {
+    width: 105px;
+    background-color: #ffffff;
+    border: 5px solid #000000; /* Ligne noire épaisse extérieure */
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.gabarit-header {
+    color: #ff0000; /* Rouge vif comme sur le document */
+    font-weight: bold;
+    font-size: 18px;
+    text-align: center;
+    padding: 10px 0;
+    border-bottom: 4px solid #000000; /* Trait noir épais sous le nom */
+}
+
+.gabarit-body {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ligne horizontale séparant les paires de chiffres */
+.gabarit-row {
+    display: flex;
+    border-bottom: 2px solid #000000; /* Ligne intérieure */
+    height: 40px;
+    position: relative;
+}
+
+.gabarit-cell {
+    width: 50%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    font-size: 15px;
+    font-weight: bold;
+    color: #000000;
+}
+
+/* Disposition en quinconce conforme à l'image */
+.gabarit-cell.gauche {
+    justify-content: flex-start;
+    padding-left: 10px;
+    border-right: 2px solid #000000; /* Ligne verticale centrale */
+}
+
+.gabarit-cell.droite {
+    justify-content: flex-end;
+    padding-right: 10px;
+}
+
+/* Pied de page du gabarit */
+.gabarit-footer {
+    border-top: 2px solid #000000;
+    color: #ff0000;
+    font-weight: bold;
+    font-size: 14px;
+    text-align: center;
+    padding: 10px 0;
+    background-color: #ffffff;
+}
+
+/* --- LE JETON PHYSIQUE (PION) --- */
+.pion-score {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    background: radial-gradient(circle at 30% 30%, #ff4d4d, #990000); /* Effet résine 3D */
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.6);
+    transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1); /* Animation de glisse réaliste */
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* Joueur actif clignote légèrement */
+.colonne-active {
+    box-shadow: 0 0 20px #ffcc00;
+    transform: scale(1.02);
+}
+
+/* --- GRAPHISME DES DÉS JEU DE SOCIÉTÉ --- */
+#dice-container {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 15px 0;
+    min-height: 65px;
+}
+
+.real-die {
+    width: 55px;
+    height: 55px;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: inset 0 -4px 8px rgba(0,0,0,0.2), 0 6px 10px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    padding: 5px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.real-die:active { transform: scale(0.9); }
+.real-die.kept {
+    background-color: #ffcc00; /* Dé mis de côté devient doré */
+    box-shadow: inset 0 -4px 8px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Points noirs incrustés sur les faces du dé (Pip) */
+.pip {
+    background-color: #000;
+    border-radius: 50%;
+    width: 8px;
+    height: 8px;
+    margin: auto;
+}
