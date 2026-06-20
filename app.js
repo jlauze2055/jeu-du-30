@@ -1,257 +1,333 @@
-// Configuration et État du Jeu
-let joueurs = [];
-let indexJoueurActuel = 0;
-let phaseJeu = "normal"; // "normal" ou "penalite"
-let desPaiementRequis = 0;
-let ciblePenaliteIndex = null;
-let desGarderCeTour = [];
-let desDisponibles = 6;
-let desLances = [];
+// --- VARIABLES D'ÉTAT DE L'APPLICATION ---
+let players = []; 
+let currentRound = 1;
+let currentIndex = 0; 
+let firstPlayerOfRoundIndex = 0; 
+// États pour gérer les pénalités complexes en cascade
+let penaltyState = { active: false, targetIndex: -1, faceValue: 0, diceRemaining: 0, direction: "" };
+// Historique pour l'annulation (Undo) du dernier coup joué
+let historyState = null;
 
-// Enregistrement du Service Worker pour la PWA
+// Éléments DOM
+const scrConfig = document.getElementById('screen-config');
+const scrGame = document.getElementById('screen-game');
+const gridContainer = document.getElementById('scoreboard-grid');
+const stepRoll6 = document.getElementById('step-roll-6');
+const stepPenalty = document.getElementById('step-penalty');
+const labelPenaltyText = document.getElementById('label-penalty-text');
+const valTotal6 = document.getElementById('input-total-6');
+const valDiceCount = document.getElementById('input-dice-count');
+const displayRound = document.getElementById('display-round-id');
+const displayCurrentPlayerName = document.getElementById('display-current-player');
+const systemMessage = document.getElementById('system-message');
+const btnNextRound = document.getElementById('btn-next-round');
+const btnUndo = document.getElementById('btn-undo');
+
+// Enregistrement du Service Worker avec rechargement automatique si mise à jour
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+  navigator.serviceWorker.register('sw.js')
+  .then((reg) => {
+    reg.addEventListener('updatefound', () => {
+      const newWorker = reg.installing;
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'activated') {
+          window.location.reload();
+        }
+      });
+    });
+  })
+  .catch(() => {});
 }
 
-// Initialisation des champs de saisie des prénoms
-document.getElementById('nb-joueurs').addEventListener('change', (e) => {
-    const container = document.getElementById('players-input-container');
-    container.innerHTML = '';
-    const nb = parseInt(e.target.value);
-    for(let i=1; i<=nb; i++) {
-        container.innerHTML += `<input type="text" id="p${i}" placeholder="Joueur ${i}" required><br>`;
-    }
-});
-document.getElementById('nb-joueurs').dispatchEvent(new Event('change'));
-
-// Lancement du jeu
+// --- CONFIGURATION INITIALE & LANCEMENT ---
 document.getElementById('btn-start').addEventListener('click', () => {
-    const nb = parseInt(document.getElementById('nb-joueurs').value);
-    joueurs = [];
-    for(let i=1; i<=nb; i++) {
-        const name = document.getElementById(`p${i}`).value || `Joueur ${i}`;
-        joueurs.push({ name: name, score: 30, victoires: 0, elimine: false });
+  const p1 = document.getElementById('p1').value.trim();
+  const p2 = document.getElementById('p2').value.trim();
+  
+  if (!p1 || !p2) { 
+    alert("Les deux premiers joueurs sont obligatoires."); 
+    return; 
+  }
+  
+  players = [];
+  for (let i = 1; i <= 8; i++) {
+    const name = document.getElementById(`p${i}`).value.trim();
+    if (name) { 
+      players.push({ name: name, score: 30, wins: 0 }); 
     }
-    document.getElementById('setup-screen').classList.add('hidden');
-    document.getElementById('game-screen').classList.remove('hidden');
-    initialiserTour();
-    genererTableau();
+  }
+
+  currentRound = 1;
+  firstPlayerOfRoundIndex = 0;
+  historyState = null;
+  startRound();
+  scrConfig.classList.add('hidden');
+  scrGame.classList.remove('hidden');
 });
 
-function genererTableau() {
-    const board = document.getElementById('score-board');
-    board.innerHTML = '';
-
-    joueurs.forEach((j, joueurIdx) => {
-        if (j.elimine) return;
-
-        let actifClass = (joueurIdx === indexJoueurActuel) ? 'colonne-active' : '';
-        
-        let html = `
-            <div class="gabarit-colonne ${actifClass}" id="col-j-${joueurIdx}">
-                <div class="gabarit-header">${j.name}</div>
-                <div class="gabarit-body" id="body-j-${joueurIdx}">
-                    <!-- Le pion physique sera injecté dynamiquement ici -->
-                    <div class="pion-score" id="pion-j-${joueurIdx}"></div>
-        `;
-
-        // Génération du gabarit par rangées (30/29, 28/27, etc.)
-        for (let scoreMax = 30; scoreMax >= 0; scoreMax -= 2) {
-            let nGauche = scoreMax;
-            let nDroite = scoreMax - 1;
-
-            html += `<div class="gabarit-row" id="row-${joueurIdx}-${nGauche}">`;
-            
-            // Case de gauche (Chiffres pairs)
-            html += `<div class="gabarit-cell gauche">${nGauche}</div>`;
-            
-            // Case de droite (Chiffres impairs, sauf si inférieur à 0)
-            if (nDroite >= 0) {
-                html += `<div class="gabarit-cell droite">${nDroite}</div>`;
-            } else {
-                html += `<div class="gabarit-cell droite"></div>`;
-            }
-            
-            html += `</div>`;
-        }
-
-        html += `
-                </div>
-                <div class="gabarit-footer">Nb victoires : ${j.victoires}</div>
-            </div>
-        `;
-
-        board.innerHTML += html;
-    });
-
-    // Forcer le calcul du placement des pions après affichage
-    setTimeout(actualiserPositionPions, 50);
+// --- ENCLENCHEMENT D'UNE MANCHE ---
+function startRound() {
+  players.forEach(p => p.score = 30);
+  currentIndex = firstPlayerOfRoundIndex;
+  penaltyState.active = false;
+  
+  displayRound.textContent = currentRound;
+  systemMessage.textContent = "";
+  btnNextRound.classList.add('hidden');
+  
+  resetActionInputs();
+  renderGridScoreboard();
+  updateActiveTurnDisplay();
 }
 
-function actualiserPositionPions() {
-    joueurs.forEach((j, joueurIdx) => {
-        if (j.elimine) return;
-
-        const pion = document.getElementById(`pion-j-${joueurIdx}`);
-        const scoreCible = j.score;
-
-        // Trouver la rangée parente (indexée par le chiffre pair associé)
-        const lignePaire = (scoreCible % 2 === 0) ? scoreCible : scoreCible + 1;
-        const rowEl = document.getElementById(`row-${joueurIdx}-${lignePaire}`);
-        const bodyEl = document.getElementById(`body-j-${joueurIdx}`);
-
-        if (rowEl && pion && bodyEl) {
-            // Calcul top par rapport au conteneur de la colonne
-            let topPos = rowEl.offsetTop + (rowEl.offsetHeight / 2) - 16; 
-            
-            // Centrage horizontal selon pair (gauche) ou impair (droite)
-            let leftPos = 0;
-            if (scoreCible % 2 === 0) {
-                leftPos = (rowEl.offsetWidth / 4) - 16; // Centre de la moitié gauche
-            } else {
-                leftPos = (3 * rowEl.offsetWidth / 4) - 16; // Centre de la moitié droite
-            }
-
-            // Application des styles pour déclencher l'animation fluide CSS
-            pion.style.top = `${topPos}px`;
-            pion.style.left = `${leftPos}px`;
-            
-            // Si le pion change de couleur pour le joueur actif
-            pion.style.background = (joueurIdx === indexJoueurActuel) 
-                ? "radial-gradient(circle at 30% 30%, #66ff66, #006600)" // Vert pour le joueur actif
-                : "radial-gradient(circle at 30% 30%, #ff4d4d, #990000)"; // Rouge pour les autres
-        }
-    });
+// Mémorise l'état actuel avant une action pour permettre l'annulation
+function saveToHistory() {
+  historyState = {
+    players: JSON.parse(JSON.stringify(players)),
+    currentRound: currentRound,
+    currentIndex: currentIndex,
+    firstPlayerOfRoundIndex: firstPlayerOfRoundIndex,
+    penaltyState: JSON.parse(JSON.stringify(penaltyState)),
+    systemMessageText: systemMessage.textContent
+  };
 }
 
-function genererHTMLDes(valeur, estGarde, index) {
-    // Schémas de positionnement des points (pips) sur une grille 3x3 pour chaque face
-    const configurationFaces = {
-        1: [4],
-        2: [0, 8],
-        3: [0, 4, 8],
-        4: [0, 2, 6, 8],
-        5: [0, 2, 4, 6, 8],
-        6: [0, 2, 3, 5, 6, 8]
-    };
-
-    let pipsHtml = '';
-    const pointsActifs = configurationFaces[valeur];
-
-    // Générer les 9 sous-cases du dé
-    for (let i = 0; i < 9; i++) {
-        if (pointsActifs.includes(i)) {
-            pipsHtml += `<div class="pip"></div>`;
-        } else {
-            pipsHtml += `<div></div>`;
-        }
-    }
-
-    let classeGarde = estGarde ? 'kept' : '';
-    return `<div class="real-die ${classeGarde}" onclick="basculerDes(${index}, this)">${pipsHtml}</div>`;
-}
-
-function initialiserTour() {
-    desGarderCeTour = [];
-    desDisponibles = 6;
-    document.getElementById('current-player-name').innerText = joueurs[indexJoueurActuel].name;
-    document.getElementById('btn-roll').disabled = false;
-    document.getElementById('btn-end-turn').disabled = true;
-    document.getElementById('turn-status').innerText = "Lancez les 6 dés.";
-    document.getElementById('dice-container').innerHTML = '';
-}
-
-// Gestion des lancers de dés
-// Gestion graphique du lancer de dés
-document.getElementById('btn-roll').addEventListener('click', () => {
-    const container = document.getElementById('dice-container');
-    container.innerHTML = '';
-    desLances = [];
-
-    for (let i = 0; i < desDisponibles; i++) {
-        let val = Math.floor(Math.random() * 6) + 1;
-        desLances.push({ value: val, kept: false });
-        
-        // Génération du dé visuel avec ses points noirs (pips)
-        let divTemporaire = document.createElement('div');
-        divTemporaire.innerHTML = genererHTMLDes(val, false, i);
-        let dieEl = divTemporaire.firstElementChild;
-        
-        container.appendChild(dieEl);
-    }
-    document.getElementById('btn-roll').disabled = true;
-});
-
-function basculerDes(idx, el) {
-    if (phaseJeu === "normal") {
-        desLances[idx].kept = !desLances[idx].kept;
-        el.classList.toggle('kept');
-        
-        let auMoinsUnGarde = desLances.some(d => d.kept);
-        document.getElementById('btn-end-turn').disabled = !auMoinsUnGarde;
-    }
-}
-
-// Validation de la sélection ou fin du tour
-document.getElementById('btn-end-turn').addEventListener('click', () => {
-    let gardes = desLances.filter(d => d.kept).map(d => d.value);
-    desGarderCeTour = desGarderCeTour.concat(gardes);
-    desDisponibles -= gardes.length;
-
-    if (desDisponibles > 0) {
-        document.getElementById('btn-roll').disabled = false;
-        document.getElementById('btn-end-turn').disabled = true;
-        document.getElementById('dice-container').innerHTML = '';
-        document.getElementById('turn-status').innerText = `Dés restants : ${desDisponibles}. Relancez.`;
-    } else {
-        traiterResultatFinTour();
-    }
-});
-
-function traiterResultatFinTour() {
-    let total = desGarderCeTour.reduce((a, b) => a + b, 0);
-    let joueur = joueurs[indexJoueurActuel];
-
-    if (total < 30) {
-        let perte = 30 - total;
-        joueur.score = Math.max(0, joueur.score - perte);
-        if(joueur.score === 0) joueur.elimine = true;
-        passerAuJoueurSuivant();
-    } else if (total === 30) {
-        passerAuJoueurSuivant();
-    } else {
-        // Règle des pénalités (31 et +)
-        desPaiementRequis = total - 30;
-        let direction = (total % 2 !== 0) ? -1 : 1; // Impair = Gauche (-1), Pair = Droite (+1)
-        ciblePenaliteIndex = calculerProchainJoueurVivant(indexJoueurActuel, direction);
-        
-        alert(`${joueur.name} fait un score de ${total} ! Phase d'attaque ciblée sur le joueur à sa ${(direction === -1)?'gauche':'droite'}.`);
-        // Ici, implémenter la logique de relance pour la pénalité selon vos règles
-        passerAuJoueurSuivant(); 
-    }
-}
-
-function calculerProchainJoueurVivant(actuel, direction) {
-    let idx = (actuel + direction + joueurs.length) % joueurs.length;
-    while(joueurs[idx].elimine) {
-        idx = (idx + direction + joueurs.length) % joueurs.length;
-    }
-    return idx;
-}
-
-function passerAuJoueurSuivant() {
-    genererTableau();
-    // Vérification fin de partie
-    let vivants = joueurs.filter(j => !j.elimine);
-    if (vivants.length === 1) {
-        alert(`Victoire de ${vivants[0].name} !`);
-        vivants[0].victoires++;
-        return;
+// --- DESSIN DE LA GRILLE VISUELLE (3x3) ---
+function renderGridScoreboard() {
+  gridContainer.innerHTML = '';
+  
+  players.forEach((p, idx) => {
+    const cell = document.createElement('div');
+    cell.className = `grid-cell`;
+    cell.setAttribute('data-pos', idx + 1);
+    
+    if (p.score <= 0) {
+      cell.classList.add('eliminated');
+    } else if (idx === currentIndex && p.score > 0) {
+      cell.classList.add('active'); 
     }
     
-    do {
-        indexJoueurActuel = (indexJoueurActuel + 1) % joueurs.length;
-    } while (joueurs[indexJoueurActuel].elimine);
+    // Gestion dynamique de l'affichage textuel du pluriel des victoires
+    let winsHTML = '';
+    const roundedWins = Math.round(p.wins);
+    if (roundedWins === 1) {
+      winsHTML = `<div class="cell-wins">1 victoire</div>`;
+    } else if (roundedWins > 1) {
+      winsHTML = `<div class="cell-wins">${roundedWins} victoires</div>`;
+    }
     
-    initialiserTour();
+    cell.innerHTML = `
+      <div class="cell-name">${p.name}</div>
+      <div class="cell-score">${Math.round(p.score)}</div>
+      ${winsHTML}
+    `;
+    gridContainer.appendChild(cell);
+  });
 }
+
+
+function updateActiveTurnDisplay() {
+  if (players[currentIndex].score <= 0) { 
+    moveToNextLivePlayer(); 
+    return; 
+  }
+  displayCurrentPlayerName.textContent = players[currentIndex].name;
+  renderGridScoreboard();
+}
+
+function resetActionInputs() {
+  stepRoll6.classList.remove('hidden');
+  stepPenalty.classList.add('hidden');
+  valTotal6.value = '';
+  valDiceCount.value = '';
+}
+
+// --- SOUMISSION ACTION 1 : LANCER INITIAL (6 DÉS) ---
+document.getElementById('btn-submit-6').addEventListener('click', () => {
+  const total = parseInt(valTotal6.value);
+  if (isNaN(total) || total < 6 || total > 36) { 
+    alert("Veuillez entrer un total valide entre 6 et 36."); 
+    return; 
+  }
+  
+  saveToHistory();
+  systemMessage.textContent = ""; 
+  let currPlayer = players[currentIndex];
+  
+  if (total === 30) {
+    moveToNextLivePlayer();
+  } else if (total < 30) {
+    let loss = 30 - total;
+    currPlayer.score = Math.max(0, Math.round(currPlayer.score - loss));
+    if (currPlayer.score === 0) {
+      systemMessage.textContent = `${currPlayer.name} est éliminé(e) ! (-${loss} pts)`;
+    }
+    moveToNextLivePlayer();
+  } else {
+    // 31, 33, 35 -> Gauche | 32, 34, 36 -> Droite
+    let direction = [31, 33, 35].includes(total) ? "gauche" : "droite";
+    let face = total - 30;
+    
+    let target = findTargetIndex(currentIndex, direction);
+    if (target === -1) {
+      moveToNextLivePlayer();
+      return;
+    }
+    
+    penaltyState = { active: true, targetIndex: target, faceValue: face, diceRemaining: 0, direction: direction };
+    
+    stepRoll6.classList.add('hidden');
+    stepPenalty.classList.remove('hidden');
+    labelPenaltyText.textContent = `Dés de pénalité (${face} attendu)`;
+    valDiceCount.placeholder = `Saisie entre 0 et 99`;
+  }
+});
+
+// --- SOUMISSION ACTION 2 : PÉNALITÉ ---
+document.getElementById('btn-submit-penalty').addEventListener('click', () => {
+  const count = parseInt(valDiceCount.value);
+  if (isNaN(count) || count < 0 || count > 99) { 
+    alert("Veuillez inscrire un nombre de dés tirés entre 0 et 99."); 
+    return; 
+  }
+  
+  saveToHistory();
+  applyCascadePenalty();
+});
+
+function applyCascadePenalty() {
+  const count = parseInt(valDiceCount.value);
+  penaltyState.diceRemaining = count;
+  let penaltyReports = [];
+  
+  while (penaltyState.diceRemaining > 0 && penaltyState.targetIndex !== -1) {
+    let target = players[penaltyState.targetIndex];
+    let damagePerDie = penaltyState.faceValue;
+    
+    let initialScore = Math.round(target.score);
+    let maximumPossibleDamage = penaltyState.diceRemaining * damagePerDie;
+    
+    target.score = Math.max(0, Math.round(target.score - maximumPossibleDamage));
+    
+    let pointsLost = Math.round(initialScore - target.score);
+    let diceUsed = Math.round(pointsLost / damagePerDie);
+    penaltyState.diceRemaining = Math.max(0, Math.round(penaltyState.diceRemaining - diceUsed));
+    
+    if (target.score === 0) {
+      penaltyReports.push(`${target.name} éliminé(e) (-${pointsLost} pts)`);
+      penaltyState.targetIndex = findTargetIndex(penaltyState.targetIndex, penaltyState.direction);
+    } else {
+      penaltyReports.push(`${target.name} perd ${pointsLost} pts`);
+    }
+  }
+  
+  if (penaltyReports.length > 0) {
+    systemMessage.textContent = `Pénalité : ${penaltyReports.join(', ')}.`;
+  }
+  
+  penaltyState.active = false;
+  resetActionInputs();
+  moveToNextLivePlayer();
+}
+
+// Trouver le joueur vivant à gauche ou à droite, EXCLUANT le lanceur initial
+function findTargetIndex(startIdx, direction) {
+  let step = direction === "gauche" ? 1 : -1;
+  let len = players.length;
+  let checkIdx = (startIdx + step + len) % len;
+  
+  while (checkIdx !== startIdx) {
+    // RÈGLE : Ne pas cibler le joueur actif qui a lancé les dés pour cette pénalité
+    if (players[checkIdx].score > 0 && checkIdx !== currentIndex) { 
+      return checkIdx; 
+    }
+    checkIdx = (checkIdx + step + len) % len;
+  }
+  return -1; 
+}
+
+// --- CYCLE DES TOURS ---
+function moveToNextLivePlayer() {
+  renderGridScoreboard();
+  
+  let alivePlayers = players.filter(p => p.score > 0);
+  
+  if (alivePlayers.length <= 1) {
+    endRound(alivePlayers[0]);
+    return;
+  }
+  
+  let len = players.length;
+  let attempts = 0;
+  do {
+    currentIndex = (currentIndex + 1) % len;
+    attempts++;
+  } while (players[currentIndex].score <= 0 && attempts < len);
+
+  updateActiveTurnDisplay();
+}
+
+// --- FIN DE MANCHE & ATTRIBUTION DES VICTOIRES ---
+function endRound(alivePlayersArray) {
+  let winnerIndex = -1;
+
+  // L'argument reçu est un tableau filtré des survivants
+  if (alivePlayersArray && alivePlayersArray.length > 0) {
+    let winner = alivePlayersArray[0];
+    winner.wins = Math.round(winner.wins + 1);
+    systemMessage.textContent = `Fin de la manche ! Victoire de ${winner.name}.`;
+    
+    // Recherche de l'index du vainqueur dans le tableau d'origine (contenant tous les joueurs)
+    winnerIndex = players.findIndex(p => p.name === winner.name);
+  } else {
+    systemMessage.textContent = "Fin de la manche ! Aucun survivant.";
+  }
+  
+  // RÈGLE REFORMULÉE : Premier joueur = joueur (actif ou non) immédiatement à gauche (+1) du vainqueur
+  if (winnerIndex !== -1) {
+    firstPlayerOfRoundIndex = (winnerIndex + 1) % players.length;
+  } else {
+    firstPlayerOfRoundIndex = (firstPlayerOfRoundIndex + 1) % players.length;
+  }
+  
+  currentRound++;
+  
+  btnNextRound.classList.remove('hidden');
+  stepRoll6.classList.add('hidden');
+  stepPenalty.classList.add('hidden');
+}
+
+btnNextRound.addEventListener('click', () => {
+  startRound();
+});
+
+// --- REBOBINAGE (UNDO) ---
+btnUndo.addEventListener('click', () => {
+  if (!historyState) {
+    alert("Aucune action à annuler.");
+    return;
+  }
+  
+  players = historyState.players;
+  currentRound = historyState.currentRound;
+  currentIndex = historyState.currentIndex;
+  firstPlayerOfRoundIndex = historyState.firstPlayerOfRoundIndex;
+  penaltyState = historyState.penaltyState;
+  systemMessage.textContent = historyState.systemMessageText;
+  
+  displayRound.textContent = currentRound;
+  
+  if (penaltyState.active) {
+    stepRoll6.classList.add('hidden');
+    stepPenalty.classList.remove('hidden');
+    labelPenaltyText.textContent = `Dés de pénalité (${penaltyState.faceValue} attendu)`;
+    valDiceCount.placeholder = `Saisie entre 0 et 99`;
+    valDiceCount.value = '';
+  } else {
+    resetActionInputs();
+  }
+  
+  historyState = null; 
+  renderGridScoreboard();
+  displayCurrentPlayerName.textContent = players[currentIndex].name;
+});

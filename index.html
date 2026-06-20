@@ -1,237 +1,72 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jeu du 30</title>
-    <style>
-        body { font-family: monospace; padding: 15px; max-width: 500px; margin: 0 auto; background: #fff; color: #000; }
-        h1, h2, h3 { margin: 10px 0; border-bottom: 2px solid #000; padding-bottom: 5px; }
-        .hidden { display: none !important; }
-        .row { display: flex; margin-bottom: 8px; align-items: center; }
-        .row label { width: 30px; font-weight: bold; }
-        input[type="text"] { flex: 1; padding: 6px; border: 1px solid #000; font-family: monospace; font-size: 14px; }
-        button { background: #000; color: #fff; border: 1px solid #000; padding: 10px; cursor: pointer; font-family: monospace; font-weight: bold; width: 100%; margin-top: 10px; font-size: 14px; }
-        button:hover { background: #333; }
-        .btn-danger { background: #fff; color: #000; border: 1px dashed #000; }
-        .player-box { border: 1px solid #000; padding: 8px; margin-bottom: 5px; display: flex; justify-content: space-between; }
-        .active { background: #000; color: #fff; }
-        .eliminated { text-decoration: line-through; opacity: 0.4; background: #eee; color: #000; }
-        .dice-zone { display: flex; gap: 8px; justify-content: center; margin: 15px 0; }
-        .die { border: 2px solid #000; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; cursor: pointer; background: #fff; color: #000; }
-        .die.kept { background: #ddd; cursor: not-allowed; }
-        .die.selected { border-style: dashed; background: #000; color: #fff; }
-        .box { border: 1px solid #000; padding: 10px; margin-top: 15px; background: #fafafa; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jeu du 30</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
 </head>
 <body>
 
-    <h1>JEU DU 30</h1>
+  <!-- ÉCRAN 1 : CONFIGURATION DES JOUEURS -->
+  <section id="screen-config" class="screen">
+    <h1>Bienvenue au jeu du 30</h1>
+    <div class="inputs-container">
+      <div class="input-group"><label>Joueur 1</label><input type="text" id="p1" placeholder="Obligatoire" required></div>
+      <div class="input-group"><label>Joueur 2</label><input type="text" id="p2" placeholder="Obligatoire" required></div>
+      <div class="input-group"><label>Joueur 3</label><input type="text" id="p3" placeholder="Facultatif"></div>
+      <div class="input-group"><label>Joueur 4</label><input type="text" id="p4" placeholder="Facultatif"></div>
+      <div class="input-group"><label>Joueur 5</label><input type="text" id="p5" placeholder="Facultatif"></div>
+      <div class="input-group"><label>Joueur 6</label><input type="text" id="p6" placeholder="Facultatif"></div>
+      <div class="input-group"><label>Joueur 7</label><input type="text" id="p7" placeholder="Facultatif"></div>
+      <div class="input-group"><label>Joueur 8</label><input type="text" id="p8" placeholder="Facultatif"></div>
+    </div>
+    <button id="btn-start" class="btn-gray">Débuter la première manche</button>
+  </section>
 
-    <!-- 1. ÉCRAN DE CONFIGURATION (SAISIE DES PRÉNOMS) -->
-    <div id="screen-setup">
-        <h3>Saisie des joueurs (2 à 8)</h3>
-        <div id="inputs-container">
-            <div class="row"><label>1</label><input type="text" id="p-name-1" placeholder="Prénom (Obligatoire)"></div>
-            <div class="row"><label>2</label><input type="text" id="p-name-2" placeholder="Prénom (Obligatoire)"></div>
-            <div class="row"><label>3</label><input type="text" id="p-name-3" placeholder="Optionnel"></div>
-            <div class="row"><label>4</label><input type="text" id="p-name-4" placeholder="Optionnel"></div>
-            <div class="row"><label>5</label><input type="text" id="p-name-5" placeholder="Optionnel"></div>
-            <div class="row"><label>6</label><input type="text" id="p-name-6" placeholder="Optionnel"></div>
-            <div class="row"><label>7</label><input type="text" id="p-name-7" placeholder="Optionnel"></div>
-            <div class="row"><label>8</label><input type="text" id="p-name-8" placeholder="Optionnel"></div>
-        </div>
-        <button type="button" onclick="declencherPartie()">Lancer la partie</button>
+  <!-- ÉCRAN 2 : PLATEAU / TABLEAU DE POINTAGE -->
+  <section id="screen-game" class="screen hidden">
+    <div class="header-table">
+      <!-- Indicateur visuel de réseau -->
+      <div id="network-status" class="status-badge online">En ligne</div>
+      
+      <h2>Tableau de pointage - Jeu du 30</h2>
+      <div class="meta-row"><strong>Manche</strong> <span id="display-round-id">1</span></div>
+      <div class="meta-row"><strong>Joueur</strong> <span id="display-current-player">...</span></div>
     </div>
 
-    <!-- 2. ZONE DE JEU PRINCIPALE -->
-    <div id="screen-game" class="hidden">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h3 id="current-turn-title">Tour de : -</h3>
-            <button onclick="abandonnerPartie()" class="btn-danger" style="width: auto; margin: 0; padding: 4px 8px;">Quitter</button>
-        </div>
-        <p id="phase-label" style="font-weight: bold; margin: 5px 0; text-transform: uppercase; color: blue;"></p>
-        
-        <div id="scoreboard"></div>
+    <!-- Zone d'action interactive intégrée au design -->
+    <div id="action-panel">
+      <!-- Lancer initial (6 dés) -->
+      <div id="step-roll-6" class="meta-row-input">
+        <label><strong>Total des lancers</strong></label>
+        <input type="number" id="input-total-6" placeholder="Saisie entre 6 et 36" min="6" max="36">
+        <button id="btn-submit-6" class="btn-small">OK</button>
+      </div>
 
-        <div class="box">
-            <p id="instruction-text" style="margin: 0 0 10px 0; font-size: 13px; font-style: italic;"></p>
-            <div class="dice-zone" id="dice-container"></div>
-            <button id="btn-action" onclick="gererLancer()">Lancer les dés</button>
-        </div>
+      <!-- Lancer de pénalité (Dés tirés) -->
+      <div id="step-penalty" class="meta-row-input hidden">
+        <label><strong id="label-penalty-text">Dés de pénalité</strong></label>
+        <input type="number" id="input-dice-count" placeholder="Saisie entre 0 et 99" min="0" max="99">
+        <button id="btn-submit-penalty" class="btn-small">OK</button>
+      </div>
     </div>
 
-    <!-- 3. ZONE DE FIN DE PARTIE -->
-    <div id="screen-victory" class="hidden">
-        <h2>FIN DE PARTIE</h2>
-        <p id="winner-text" style="font-size: 18px; font-weight: bold; color: green;"></p>
-        <div class="box">
-            <h4>Historique global des victoires :</h4>
-            <div id="history-list"></div>
-        </div>
-        <button onclick="recommencerPartieSame()">Recommencer à cette étape</button>
+    <!-- Grille dynamique des scores (3x3 circulaire, centre vide) -->
+    <div id="scoreboard-grid" class="grid-container"></div>
+
+    <!-- Zone de notifications, alertes d'éliminations ou de victoires -->
+    <p id="system-message" class="red-italic-msg">Message d'élimination ou message au vainqueur</p>
+
+    <!-- Boutons de contrôles inférieurs -->
+    <div class="footer-buttons">
+      <button id="btn-next-round" class="btn-gray hidden">Lancer la prochaine manche</button>
+      <div class="spacer"></div>
+      <button id="btn-undo" class="btn-gray">Annuler le dernier coup</button>
     </div>
+  </section>
 
-<script>
-    var pList = [];
-    var activeIdx = 0;
-    var turnPhase = 'ROLL'; 
-    var currentDice = [];
-    var targetValueFace = 0;
-    var attackDir = 'RIGHT';
-    var attackCount = 0;
-    var nextStartOrder = null;
-    var winHistory = {};
-
-    function declencherPartie() {
-        var n1 = document.getElementById('p-name-1').value.trim();
-        var n2 = document.getElementById('p-name-2').value.trim();
-        
-        if (!n1 || !n2) {
-            alert("Les deux premiers joueurs sont obligatoires.");
-            return;
-        }
-
-        pList = [];
-        for (var i = 1; i <= 8; i++) {
-            var val = document.getElementById('p-name-' + i).value.trim();
-            if (val) {
-                pList.push({ name: val, order: i, score: 30, dead: false });
-            }
-        }
-
-        pList.sort(function(a, b) { return a.order - b.order; });
-
-        if (nextStartOrder === null) {
-            activeIdx = 0;
-        } else {
-            var foundIdx = 0;
-            for (var j = 0; j < pList.length; j++) {
-                if (pList[j].order === nextStartOrder) { foundIdx = j; break; }
-            }
-            activeIdx = foundIdx;
-        }
-
-        demarrerTourJoueur();
-    }
-
-    function demarrerTourJoueur() {
-        turnPhase = 'ROLL';
-        currentDice = [];
-        for (var i = 0; i < 6; i++) {
-            currentDice.push({ val: 1, kept: false, sel: false });
-        }
-        if (pList[activeIdx].dead) {
-            passerAuSuivant();
-        } else {
-            sauvegarderEtatTemporaire();
-            rafraichirInterface();
-        }
-    }
-
-    function gererLancer() {
-        if (turnPhase === 'ROLL') {
-            for (var i = 0; i < currentDice.length; i++) {
-                if (!currentDice[i].kept) {
-                    currentDice[i].val = Math.floor(Math.random() * 6) + 1;
-                }
-            }
-            turnPhase = 'KEEP';
-        } 
-        else if (turnPhase === 'KEEP') {
-            var hasSel = false;
-            for (var i = 0; i < currentDice.length; i++) {
-                if (currentDice[i].sel) { hasSel = true; break; }
-            }
-            if (!hasSel) {
-                alert("Cliquez sur au moins 1 dé pour le garder.");
-                return;
-            }
-            for (var i = 0; i < currentDice.length; i++) {
-                if (currentDice[i].sel) {
-                    currentDice[i].kept = true;
-                    currentDice[i].sel = false;
-                }
-            }
-            var totalKept = 0;
-            for (var i = 0; i < currentDice.length; i++) {
-                if (currentDice[i].kept) totalKept++;
-            }
-            if (totalKept === 6) {
-                analyserResultatFinal();
-            } else {
-                turnPhase = 'ROLL';
-            }
-        } 
-        else if (turnPhase === 'ATTACK') {
-            var kCount = 0;
-            for (var i = 0; i < currentDice.length; i++) { if (currentDice[i].kept) kCount++; }
-            var rem = 6 - (kCount % 6);
-            if (rem === 0) rem = 6;
-
-            var jets = [];
-            for (var i = 0; i < rem; i++) { jets.push(Math.floor(Math.random() * 6) + 1); }
-            
-            var matches = 0;
-            for (var i = 0; i < jets.length; i++) { if (jets[i] === targetValueFace) matches++; }
-
-            if (matches > 0) {
-                attackCount += matches;
-                currentDice = [];
-                for (var i = 0; i < attackCount; i++) {
-                    currentDice.push({ val: targetValueFace, kept: true, sel: false });
-                }
-                alert('🛡️ +' + matches + ' dés d\'attaque ! (Total: ' + attackCount + ')');
-            } else {
-                alert('💥 Aucun dé de valeur ' + targetValueFace + ' obtenu. Fin de lancers.');
-                distribuerPenalites();
-                return;
-            }
-        }
-        sauvegarderEtatTemporaire();
-        rafraichirInterface();
-    }
-
-    function clicSelectDe(idx) {
-        if (turnPhase !== 'KEEP' || currentDice[idx].kept) return;
-        currentDice[idx].sel = !currentDice[idx].sel;
-        rafraichirInterface();
-    }
-
-    function analyserResultatFinal() {
-        var total = 0;
-        for (var i = 0; i < currentDice.length; i++) { total += currentDice[i].val; }
-        var p = pList[activeIdx];
-        alert('🎲 ' + p.name + ' fait un score total de : ' + total);
-
-        if (total < 30) {
-            var diff = 30 - total;
-            p.score = Math.max(0, p.score - diff);
-            if (p.score <= 0) p.dead = true;
-            alert('📉 ' + p.name + ' perd ' + diff + ' points.');
-            passerAuSuivant();
-        } else if (total === 30) {
-            alert('⚖️ Score de 30 pile. Aucun point perdu.');
-            passerAuSuivant();
-        } else {
-            targetValueFace = total - 30;
-            attackCount = 0;
-            turnPhase = 'ATTACK';
-            currentDice = [];
-            if (total === 31 || total === 33 || total === 35) {
-                attackDir = 'LEFT';
-            } else {
-                attackDir = 'RIGHT';
-            }
-            alert('⚔️ Attaque ! Cherchez des ' + targetValueFace + ' pour pénaliser à ' + (attackDir === 'LEFT' ? 'GAUCHE' : 'DROITE') + '.');
-        }
-    }
-
-    function distribuerPenalites() {
-        var deRestants = attackCount;
-        if (deRestants === 0) { passerAuSuivant(); return; }
-
-        var cibleIdx = chercherProchainVivant(activeIdx, attackDir);
-        while (deRestants > 0 && cibleIdx !== null && cibleIdx !== activeIdx) {
-            var targetP = pList[cibleIdx];
-targetP.score = Math.max(0, targetP.score - targetValueFace);deRestants--;if (targetP.score <= 0) {targetP.dead = true;alert('💀 ' + targetP.name + ' est ÉLIMINÉ !');cibleIdx = chercherProchainVivant(cibleIdx, attackDir);} else {alert('💥 ' + targetP.name + ' prend -' + targetValueFace + ' pts. Reste : ' + targetP.score);}}passerAuSuivant();}function chercherProchainVivant(depart, dir) {var pas = (dir === 'LEFT') ? -1 : 1;var c = (depart + pas + pList.length) % pList.length;for (var i = 0; i < pList.length; i++) {if (!pList[c].dead) return c;c = (c + pas + pList.length) % pList.length;}return null;}function passerAuSuivant() {var vivants = [];for (var i = 0; i < pList.length; i++) {if (!pList[i].dead) vivants.push(pList[i]);}// Ligne corrigée définitivement : On envoie le seul et unique joueur gagnant, pas la listeif (vivants.length <= 1) {validerFinDePartie(vivants[0]);return;}do {activeIdx = (activeIdx + 1) % pList.length;} while (pList[activeIdx].dead);demarrerTourJoueur();}function validerFinDePartie(gagnantObj) {localStorage.removeItem('j30_session');document.getElementById('screen-setup').classList.add('hidden');document.getElementById('screen-game').classList.add('hidden');document.getElementById('screen-victory').classList.remove('hidden');var gName = gagnantObj ? gagnantObj.name : "Aucun";document.getElementById('winner-text').textContent = '🏆 Victoire de : ' + gName + ' !';if (gagnantObj) {winHistory[gagnantObj.name] = (winHistory[gagnantObj.name] || 0) + 1;localStorage.setItem('j30_histo', JSON.stringify(winHistory));var wIdx = 0;for (var i = 0; i < pList.length; i++) {if (pList[i].name === gagnantObj.name) { wIdx = i; break; }}var gaucheIdx = (wIdx - 1 + pList.length) % pList.length;nextStartOrder = pList[gaucheIdx].order;}var hZone = document.getElementById('history-list');hZone.innerHTML = '';Object.keys(winHistory).forEach(function(k) {hZone.innerHTML += '👤 ' + k + ' : ' + winHistory[k] + ' victoires';});}function recommencerPartieSame() {for (var i = 0; i < pList.length; i++) {pList[i].score = 30;pList[i].dead = false;}var startIdx = 0;for (var j = 0; j < pList.length; j++) {if (pList[j].order === nextStartOrder) { startIdx = j; break; }}activeIdx = startIdx;document.getElementById('screen-victory').classList.add('hidden');demarrerTourJoueur();}function abandonnerPartie() {if (confirm("Quitter la partie ?")) {localStorage.removeItem('j30_session');pList = [];document.getElementById('screen-game').classList.add('hidden');document.getElementById('screen-setup').classList.remove('hidden');}}function sauvegarderEtatTemporaire() {var blob = { pList: pList, activeIdx: activeIdx, turnPhase: turnPhase, currentDice: currentDice, targetValueFace: targetValueFace, attackDir: attackDir, attackCount: attackCount, nextStartOrder: nextStartOrder };localStorage.setItem('j30_session', JSON.stringify(blob));}function rafraichirInterface() {document.getElementById('screen-setup').classList.add('hidden');document.getElementById('screen-game').classList.remove('hidden');var activePlayer = pList[activeIdx];document.getElementById('current-turn-title').textContent = 'Tour de : ' + activePlayer.name;var scr = document.getElementById('scoreboard');scr.innerHTML = '';pList.forEach(function(p, idx) {scr.innerHTML += '#' + p.order + ' ' + p.name + '' + p.score + ' pts';});var lbl = document.getElementById('phase-label');var inst = document.getElementById('instruction-text');var btn = document.getElementById('btn-action');var dZone = document.getElementById('dice-container');dZone.innerHTML = '';if (turnPhase === 'ROLL') {lbl.textContent = "Phase 1 : Lancer";inst.textContent = "Cliquez ci-dessous pour lancer vos dés disponibles.";btn.textContent = "Lancer les dés";currentDice.forEach(function(d) {dZone.innerHTML += '' + (d.kept ? d.val : '?') + '';});}else if (turnPhase === 'KEEP') {lbl.textContent = "Phase 1 : Sélection";inst.textContent = "Cliquez sur les dés à figer, puis validez.";btn.textContent = "Valider la sélection";currentDice.forEach(function(d, i) {var div = document.createElement('div');div.className = 'die ' + (d.kept ? 'kept' : '') + ' ' + (d.sel ? 'selected' : '');div.textContent = d.val;div.onclick = function() { clicSelectDe(i); };dZone.appendChild(div);});}else if (turnPhase === 'ATTACK') {lbl.textContent = "Phase 2 : Attaque";inst.textContent = 'Cherchez des dés de valeur ' + targetValueFace + ' pour attaquer à ' + (attackDir === 'LEFT' ? 'GAUCHE' : 'DROITE') + '.';btn.textContent = 'Lancer pour chercher des ' + targetValueFace;if (currentDice.length === 0) {dZone.innerHTML = 'Aucun dé accumulé. Lancez !';} else {currentDice.forEach(function(d) {dZone.innerHTML += '' + d.val + '';});}}}window.onload = function() {var h = localStorage.getItem('j30_histo');if (h) { try { winHistory = JSON.parse(h); } catch(e){} }var s = localStorage.getItem('j30_session');if (s) {try {var parsed = JSON.parse(s);if (parsed.pList && parsed.pList.length >= 2) {pList = parsed.pList;activeIdx = parsed.activeIdx;turnPhase = parsed.turnPhase;currentDice = parsed.currentDice;targetValueFace = parsed.targetValueFace;attackDir = parsed.attackDir;attackCount = parsed.attackCount;nextStartOrder = parsed.nextStartOrder;for (var i = 0; i < pList.length; i++) {var el = document.getElementById('p-name-' + pList[i].order);if (el) el.value = pList[i].name;}rafraichirInterface();}} catch(e){}}};
+  <script src="app.js"></script>
+</body>
+</html>
