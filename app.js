@@ -144,43 +144,49 @@ function resetActionInputs() {
 
 // --- SOUMISSION ACTION 1 : LANCER INITIAL (6 DÉS) ---
 document.getElementById('btn-submit-6').addEventListener('click', () => {
-  const total = parseInt(valTotal6.value);
-  if (isNaN(total) || total < 6 || total > 36) { 
-    alert("Veuillez entrer un total valide entre 6 et 36."); 
-    return; 
-  }
-  
-  saveToHistory();
-  systemMessage.textContent = ""; 
-  let currPlayer = players[currentIndex];
-  
-  if (total === 30) {
-    moveToNextLivePlayer();
-  } else if (total < 30) {
-    let loss = 30 - total;
-    currPlayer.score = Math.max(0, Math.round(currPlayer.score - loss));
-    if (currPlayer.score === 0) {
-      systemMessage.textContent = `${currPlayer.name} est éliminé(e) ! (-${loss} pts)`;
-    }
-    moveToNextLivePlayer();
-  } else {
-    // 31, 33, 35 -> Gauche | 32, 34, 36 -> Droite
-    let direction = [31, 33, 35].includes(total) ? "gauche" : "droite";
-    let face = total - 30;
-    
-    let target = findTargetIndex(currentIndex, direction);
-    if (target === -1) {
-      moveToNextLivePlayer();
-      return;
-    }
-    
-    penaltyState = { active: true, targetIndex: target, faceValue: face, diceRemaining: 0, direction: direction };
-    
-    stepRoll6.classList.add('hidden');
-    stepPenalty.classList.remove('hidden');
-    labelPenaltyText.textContent = `Dés de pénalité (${face} attendu)`;
-    valDiceCount.placeholder = `Saisie entre 0 et 99`;
-  }
+ const total = parseInt(valTotal6.value);
+ if (isNaN(total) || total < 6 || total > 36) { 
+ alert("Veuillez entrer un total valide entre 6 et 36."); 
+ return; 
+ }
+ 
+ saveToHistory();
+ systemMessage.textContent = ""; 
+ let currPlayer = players[currentIndex];
+ 
+ if (total === 30) {
+ moveToNextLivePlayer();
+ } else if (total < 30) {
+ let loss = 30 - total;
+ currPlayer.score = Math.max(0, Math.round(currPlayer.score - loss));
+ if (currPlayer.score === 0) {
+ systemMessage.textContent = `${currPlayer.name} est éliminé(e) ! (-${loss} pts)`;
+ }
+ 
+ // VERIFICATION SYSTEMATIQUE IMMEDIATE
+ if (checkImmediateWinner()) {
+ return; // On arrête tout, la manche est finie
+ }
+ 
+ moveToNextLivePlayer();
+ } else {
+ // 31, 33, 35 -> Gauche | 32, 34, 36 -> Droite
+ let direction = [31, 33, 35].includes(total) ? "gauche" : "droite";
+ let face = total - 30;
+ 
+ let target = findTargetIndex(currentIndex, direction);
+ if (target === -1) {
+ moveToNextLivePlayer();
+ return;
+ }
+ 
+ penaltyState = { active: true, targetIndex: target, faceValue: face, diceRemaining: 0, direction: direction };
+ 
+ stepRoll6.classList.add('hidden');
+ stepPenalty.classList.remove('hidden');
+ labelPenaltyText.textContent = `Dés de pénalité (${face} attendu)`;
+ valDiceCount.placeholder = `Saisie entre 0 et 99`;
+ }
 });
 
 // --- SOUMISSION ACTION 2 : PÉNALITÉ ---
@@ -196,38 +202,48 @@ document.getElementById('btn-submit-penalty').addEventListener('click', () => {
 });
 
 function applyCascadePenalty() {
-  const count = parseInt(valDiceCount.value);
-  penaltyState.diceRemaining = count;
-  let penaltyReports = [];
-  
-  while (penaltyState.diceRemaining > 0 && penaltyState.targetIndex !== -1) {
-    let target = players[penaltyState.targetIndex];
-    let damagePerDie = penaltyState.faceValue;
-    
-    let initialScore = Math.round(target.score);
-    let maximumPossibleDamage = penaltyState.diceRemaining * damagePerDie;
-    
-    target.score = Math.max(0, Math.round(target.score - maximumPossibleDamage));
-    
-    let pointsLost = Math.round(initialScore - target.score);
-    let diceUsed = Math.round(pointsLost / damagePerDie);
-    penaltyState.diceRemaining = Math.max(0, Math.round(penaltyState.diceRemaining - diceUsed));
-    
-    if (target.score === 0) {
-      penaltyReports.push(`${target.name} éliminé(e) (-${pointsLost} pts)`);
-      penaltyState.targetIndex = findTargetIndex(penaltyState.targetIndex, penaltyState.direction);
-    } else {
-      penaltyReports.push(`${target.name} perd ${pointsLost} pts`);
-    }
-  }
-  
-  if (penaltyReports.length > 0) {
-    systemMessage.textContent = `Pénalité : ${penaltyReports.join(', ')}.`;
-  }
-  
-  penaltyState.active = false;
-  resetActionInputs();
-  moveToNextLivePlayer();
+ const count = parseInt(valDiceCount.value);
+ penaltyState.diceRemaining = count;
+ let penaltyReports = [];
+ 
+ while (penaltyState.diceRemaining > 0 && penaltyState.targetIndex !== -1) {
+ let target = players[penaltyState.targetIndex];
+ let damagePerDie = penaltyState.faceValue;
+ 
+ let initialScore = Math.round(target.score);
+ let maximumPossibleDamage = penaltyState.diceRemaining * damagePerDie;
+ 
+ target.score = Math.max(0, Math.round(target.score - maximumPossibleDamage));
+ 
+ let pointsLost = Math.round(initialScore - target.score);
+ let diceUsed = Math.round(pointsLost / damagePerDie);
+ penaltyState.diceRemaining = Math.max(0, Math.round(penaltyState.diceRemaining - diceUsed));
+ 
+ if (target.score === 0) {
+ penaltyReports.push(`${target.name} éliminé(e) (-${pointsLost} pts)`);
+ 
+ // VERIFICATION SYSTEMATIQUE IMMEDIATE AU SEIN DE LA CASCADE
+ if (checkImmediateWinner()) {
+ if (penaltyReports.length > 0) {
+ systemMessage.textContent = `Pénalité : ${penaltyReports.join(', ')}.`;
+ }
+ renderGridScoreboard(); // <--- FIX : Force la mise à jour visuelle immédiate des cellules de score
+ return; // Stop immédiat : le vainqueur est désigné, on bloque les cascades suivantes
+ }
+ 
+ penaltyState.targetIndex = findTargetIndex(penaltyState.targetIndex, penaltyState.direction);
+ } else {
+ penaltyReports.push(`${target.name} perd ${pointsLost} pts`);
+ }
+ }
+ 
+ if (penaltyReports.length > 0) {
+ systemMessage.textContent = `Pénalité : ${penaltyReports.join(', ')}.`;
+ }
+ 
+ penaltyState.active = false;
+ resetActionInputs();
+ moveToNextLivePlayer();
 }
 
 // Trouver le joueur vivant à gauche ou à droite, EXCLUANT le lanceur initial
@@ -247,6 +263,17 @@ function findTargetIndex(startIdx, direction) {
 }
 
 // --- CYCLE DES TOURS ---
+// Vérifie immédiatement s'il ne reste qu'un seul survivant après un ajustement de score
+function checkImmediateWinner() {
+  let alivePlayers = players.filter(p => p.score > 0);
+  if (alivePlayers.length <= 1) {
+    // On passe directement l'unique vainqueur (ou undefined s'il n'y a plus personne)
+    endRound(alivePlayers);
+    return true;
+  }
+  return false;
+}
+
 function moveToNextLivePlayer() {
   renderGridScoreboard();
   
@@ -269,32 +296,30 @@ function moveToNextLivePlayer() {
 
 // --- FIN DE MANCHE & ATTRIBUTION DES VICTOIRES ---
 function endRound(alivePlayersArray) {
-  let winnerIndex = -1;
-
-  // L'argument reçu est un tableau filtré des survivants
-  if (alivePlayersArray && alivePlayersArray.length > 0) {
-    let winner = alivePlayersArray[0];
-    winner.wins = Math.round(winner.wins + 1);
-    systemMessage.textContent = `Fin de la manche ! Victoire de ${winner.name}.`;
-    
-    // Recherche de l'index du vainqueur dans le tableau d'origine (contenant tous les joueurs)
-    winnerIndex = players.findIndex(p => p.name === winner.name);
-  } else {
-    systemMessage.textContent = "Fin de la manche ! Aucun survivant.";
-  }
-  
-  // RÈGLE REFORMULÉE : Premier joueur = joueur (actif ou non) immédiatement à gauche (+1) du vainqueur
-  if (winnerIndex !== -1) {
-    firstPlayerOfRoundIndex = (winnerIndex + 1) % players.length;
-  } else {
-    firstPlayerOfRoundIndex = (firstPlayerOfRoundIndex + 1) % players.length;
-  }
-  
-  currentRound++;
-  
-  btnNextRound.classList.remove('hidden');
-  stepRoll6.classList.add('hidden');
-  stepPenalty.classList.add('hidden');
+ let winnerIndex = -1;
+ 
+ // Validation stricte de la présence d'un unique vainqueur
+ if (alivePlayersArray && alivePlayersArray.length === 1) {
+ let winner = alivePlayersArray[0]; // <--- FIX : Extraction correcte de l'objet joueur depuis le tableau
+ winner.wins = Math.round(winner.wins + 1);
+ systemMessage.textContent = `Fin de la manche ! Victoire de ${winner.name}.`;
+ 
+ winnerIndex = players.findIndex(p => p.name === winner.name);
+ } else {
+ systemMessage.textContent = "Fin de la manche ! Aucun survivant.";
+ }
+ 
+ if (winnerIndex !== -1) {
+ firstPlayerOfRoundIndex = (winnerIndex + 1) % players.length;
+ } else {
+ firstPlayerOfRoundIndex = (firstPlayerOfRoundIndex + 1) % players.length;
+ }
+ 
+ currentRound++;
+ 
+ btnNextRound.classList.remove('hidden');
+ stepRoll6.classList.add('hidden');
+ stepPenalty.classList.add('hidden');
 }
 
 btnNextRound.addEventListener('click', () => {
