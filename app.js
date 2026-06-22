@@ -266,21 +266,22 @@ function findTargetIndex(startIdx, direction) {
 // Vérifie immédiatement s'il ne reste qu'un seul survivant après un ajustement de score
 function checkImmediateWinner() {
   let alivePlayers = players.filter(p => p.score > 0);
-  if (alivePlayers.length <= 1) {
-    // On passe directement l'unique vainqueur (ou undefined s'il n'y a plus personne)
-    endRound(alivePlayers);
+  if (alivePlayers.length === 1) {
+    // Il reste exactement 1 joueur : il gagne immédiatement la manche
+    endRound(alivePlayers[0]); 
     return true;
   }
   return false;
 }
+
 
 function moveToNextLivePlayer() {
   renderGridScoreboard();
   
   let alivePlayers = players.filter(p => p.score > 0);
   
-  if (alivePlayers.length <= 1) {
-    endRound(alivePlayers[0]);
+  if (alivePlayers.length === 1) {
+    endRound(alivePlayers[0]); // <--- Transmet bien le joueur unique [0]
     return;
   }
   
@@ -290,36 +291,36 @@ function moveToNextLivePlayer() {
     currentIndex = (currentIndex + 1) % len;
     attempts++;
   } while (players[currentIndex].score <= 0 && attempts < len);
-
   updateActiveTurnDisplay();
 }
 
 // --- FIN DE MANCHE & ATTRIBUTION DES VICTOIRES ---
-function endRound(alivePlayersArray) {
- let winnerIndex = -1;
- 
- // Validation stricte de la présence d'un unique vainqueur
- if (alivePlayersArray && alivePlayersArray.length === 1) {
- let winner = alivePlayersArray[0]; // <--- FIX : Extraction correcte de l'objet joueur depuis le tableau
- winner.wins = Math.round(winner.wins + 1);
- systemMessage.textContent = `Fin de la manche ! Victoire de ${winner.name}.`;
- 
- winnerIndex = players.findIndex(p => p.name === winner.name);
- } else {
- systemMessage.textContent = "Fin de la manche ! Aucun survivant.";
- }
- 
- if (winnerIndex !== -1) {
- firstPlayerOfRoundIndex = (winnerIndex + 1) % players.length;
- } else {
- firstPlayerOfRoundIndex = (firstPlayerOfRoundIndex + 1) % players.length;
- }
- 
- currentRound++;
- 
- btnNextRound.classList.remove('hidden');
- stepRoll6.classList.add('hidden');
- stepPenalty.classList.add('hidden');
+function endRound(winnerPlayer) {
+  let winnerIndex = -1;
+  
+  // Validation stricte de la présence du vainqueur unique
+  if (winnerPlayer && winnerPlayer.score > 0) {
+    winnerPlayer.wins = Math.round(winnerPlayer.wins + 1);
+    
+    // Message personnalisé affichant le vainqueur officiel
+    systemMessage.textContent = `Fin de la manche ! Victoire de ${winnerPlayer.name}.`;
+    winnerIndex = players.findIndex(p => p.name === winnerPlayer.name);
+  } else {
+    // Cas de secours théorique si tout le monde tombait à 0 en même temps
+    systemMessage.textContent = "Fin de la manche ! Pas de survivant.";
+  }
+  
+  // Détermination du premier joueur de la prochaine manche
+  if (winnerIndex !== -1) {
+    firstPlayerOfRoundIndex = (winnerIndex + 1) % players.length;
+  } else {
+    firstPlayerOfRoundIndex = (firstPlayerOfRoundIndex + 1) % players.length;
+  }
+  
+  currentRound++;
+  btnNextRound.classList.remove('hidden');
+  stepRoll6.classList.add('hidden');
+  stepPenalty.classList.add('hidden');
 }
 
 btnNextRound.addEventListener('click', () => {
